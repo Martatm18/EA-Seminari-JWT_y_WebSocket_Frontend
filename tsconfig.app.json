@@ -4,7 +4,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/app",
-    "types": []
+    "types": [],
+    "rootDir": "./src" //Afegim això per a que pugui trobar els fitxers de la carpeta src
   },
   "include": [
     "src/**/*.ts"

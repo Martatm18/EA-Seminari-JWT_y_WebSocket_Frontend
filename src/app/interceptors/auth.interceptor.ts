@@ -5,7 +5,7 @@ import { catchError, switchMap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../services/auth.service';
 
-// Mensaje con el que la API responde 401 cuando el access token ha caducado (ver el contrato en LOGS.md)
+// Mensaje con el que la API suele responder 401 cuando el access token ha caducado
 const TOKEN_EXPIRED = 'El token ha caducado';
 
 // Las peticiones son inmutables: para añadir una cabecera se hace una copia con clone()
@@ -13,14 +13,9 @@ function withToken(request: HttpRequest<unknown>, token: string): HttpRequest<un
   return request.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
 }
 
-// Un interceptor se ejecuta en TODAS las peticiones de HttpClient, entre el servicio y la red.
-// Este hace dos cosas, para que ningún servicio tenga que preocuparse del token:
-//   1. Añade la cabecera Authorization: Bearer <token>.
-//   2. Si la API responde 401 porque el token ha caducado, pide uno nuevo con el refresh token
-//      y repite la petición. Si no se puede renovar, cierra la sesión (lleva al login).
+// Interceptor global para gestionar el token en memoria y su renovación automática
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
-  // Las rutas de /auth no llevan token: login y register son públicas y refresh manda el suyo
-  // en el body. Además, así un 401 del login (contraseña mala) no cierra ninguna sesión.
+  // Las rutas de /auth (login, refresh, logout) no llevan cabecera de token y usan cookies
   if (request.url.startsWith(`${environment.apiUrl}/auth/`)) {
     return next(request);
   }
@@ -28,27 +23,28 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const auth = inject(AuthService);
   const token = auth.getToken();
 
+  // Si tenemos token en memoria, lo adjuntamos a la petición
   return next(token ? withToken(request, token) : request).pipe(
     catchError((error: HttpErrorResponse) => {
-      // Cualquier error que no sea 401 lo dejo pasar tal cual al componente
+      // Cualquier error que no sea 401 (Unauthorized) lo dejamos pasar tal cual
       if (error.status !== 401) {
         return throwError(() => error);
       }
 
-      // 401 porque el token ha caducado: lo renuevo y repito la petición original una vez
-      if (error.error?.message === TOKEN_EXPIRED) {
+      // Si el 401 ocurre porque el access token ha caducado, intentamos renovarlo con la cookie
+      if (error.error?.message === TOKEN_EXPIRED || error.status === 401) {
         return auth.refresh().pipe(
-          // Si el refresh falla (el refresh token también ha caducado), cierro la sesión
+          // Si el refresh falla (la cookie también expiró), cerramos la sesión completamente
           catchError((refreshError) => {
             auth.logout();
             return throwError(() => refreshError);
           }),
-          // switchMap: cuando llega el token nuevo, lanzo otra vez la petición con él
+          // Cuando llega el nuevo access token, reintentamos la petición original con él
           switchMap((newToken) => next(withToken(request, newToken))),
         );
       }
 
-      // Cualquier otro 401 (sin token, token falso...) quiere decir que no hay sesión válida
+      // Para cualquier otro caso de 401, cerramos sesión
       auth.logout();
       return throwError(() => error);
     }),
