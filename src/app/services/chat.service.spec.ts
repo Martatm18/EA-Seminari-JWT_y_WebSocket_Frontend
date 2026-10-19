@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
 import { environment } from '../../environments/environment';
-import { ChatService } from './chat.service';
+import { ChatService, OnlineUser } from './chat.service';
 
 // La conexión real del socket se prueba con el backend arrancado (ver la bitácora en LOGS.md).
 // Aquí se prueba lo que no necesita un servidor de sockets.
@@ -41,9 +41,9 @@ describe('ChatService', () => {
   });
 
   it('starts with nobody online', () => {
-    let ids: string[] | undefined;
-    service.onlineUsers$.subscribe((v) => (ids = v));
-    expect(ids).toEqual([]);
+    let users: OnlineUser[] | undefined;
+    service.onlineUsers$.subscribe((onlineUsers) => (users = onlineUsers));
+    expect(users).toEqual([]);
   });
 
   it('connect() refuses to connect without a session token', () => {

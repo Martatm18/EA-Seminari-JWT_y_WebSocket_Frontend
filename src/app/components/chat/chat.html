@@ -5,24 +5,68 @@
       <p class="muted">Conversaciones en tiempo real.</p>
     </div>
 
-    <p class="connection-status" [class.connected]="connected()" role="status">
+    <p
+      class="connection-status"
+      [class.connected]="connected() && presence() === 'online'"
+      [class.busy]="connected() && presence() === 'busy'"
+      [class.offline]="!connected() || presence() === 'invisible'"
+      role="status"
+    >
       <span class="connection-indicator" aria-hidden="true"></span>
-      {{ connected() ? 'Conectado' : 'Desconectado' }}
+      {{ connectionLabel() }}
     </p>
   </header>
 
   <!-- Quién tiene el chat abierto ahora mismo. El servidor avisa (users:online) cada vez que
        alguien entra o sale, y la lista se actualiza sola -->
   <section class="people" aria-labelledby="people-title">
-    <h2 id="people-title" class="people-title">
-      Usuarios <span class="muted">· {{ onlineCount() }} en el chat</span>
-    </h2>
+    <div class="people-header">
+      <h2 id="people-title" class="people-title">
+        Usuarios <span class="muted">· {{ onlineCount() }} en el chat</span>
+      </h2>
+
+      <div class="presence-selector" role="group" aria-label="Estado de disponibilidad">
+        <button
+          type="button"
+          class="presence-option"
+          [class.active]="presence() === 'online'"
+          (click)="setPresence('online')"
+          title="Disponible"
+        >
+          Disponible
+        </button>
+        <button
+          type="button"
+          class="presence-option"
+          [class.active]="presence() === 'busy'"
+          (click)="setPresence('busy')"
+          title="No molestar"
+        >
+          No molestar
+        </button>
+        <button
+          type="button"
+          class="presence-option"
+          [class.active]="presence() === 'invisible'"
+          (click)="setPresence('invisible')"
+          title="Invisible"
+        >
+          Invisible
+        </button>
+      </div>
+    </div>
+
     <ul class="people-list">
       @if (me(); as me) {
         <li>
-          <span class="person me" [class.online]="connected()">
+          <span
+            class="person me"
+            [class.online]="connected() && presence() === 'online'"
+            [class.busy]="connected() && presence() === 'busy'"
+            [class.offline]="!connected() || presence() === 'invisible'"
+          >
             <span class="connection-indicator" aria-hidden="true"></span>
-            {{ me.name }} (tú)
+            {{ me.name }} (tú) · {{ presenceLabel() }}
           </span>
         </li>
       }
@@ -32,15 +76,25 @@
             type="button"
             class="person"
             [class.online]="person.online"
+            [class.busy]="person.status === 'busy'"
+            [class.offline]="!person.online"
             [title]="
-              (person.online ? 'En el chat' : 'No está en el chat') + ' · abrir chat directo'
+              (person.status === 'busy'
+                ? 'No molestar'
+                : person.online
+                  ? 'En el chat'
+                  : 'No está en el chat') + ' · abrir chat directo'
             "
             (click)="openDirect(person._id)"
           >
             <span class="connection-indicator" aria-hidden="true"></span>
-            {{ person.name }}
+            {{ person.name }}{{ person.status === 'busy' ? ' · En modo no molestar' : '' }}
             <span class="visually-hidden">{{
-              person.online ? '(en el chat)' : '(no está en el chat)'
+              person.status === 'busy'
+                ? '(en el chat, en modo no molestar)'
+                : person.online
+                  ? '(en el chat)'
+                  : '(no está en el chat)'
             }}</span>
           </button>
         </li>

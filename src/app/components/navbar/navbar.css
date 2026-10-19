@@ -1,49 +1,73 @@
+/* Contenedor principal de la barra azul superior */
 .navbar {
   display: flex;
   align-items: center;
-  gap: 2rem;
-  height: 56px;
-  padding: 0 1.5rem;
-  background: var(--primary);
+  justify-content: space-between;
+  background-color: #3b4cb8; /* Tono azul del diseño original */
+  padding: 0.75rem 1.5rem;
+  color: #ffffff;
+  width: 100%;
+  box-sizing: border-box;
 }
 
+/* Marca / Logo "Backoffice" */
 .brand {
-  color: #fff;
-  font-size: 1.1rem;
+  color: #ffffff;
+  font-size: 1.25rem;
   font-weight: 700;
   text-decoration: none;
+  margin-right: 1rem;
 }
 
+/* Enlaces de navegación principales */
 nav {
   display: flex;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 nav a {
-  padding: 0.4rem 0.8rem;
-  border-radius: var(--radius);
-  color: rgba(255, 255, 255, 0.8);
+  color: #ffffff;
   text-decoration: none;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.375rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
 }
 
-nav a:hover {
-  color: #fff;
-}
-
+nav a:hover,
 nav a.active {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background-color: rgba(255, 255, 255, 0.2);
 }
 
-/* La sesión va a la derecha del todo */
+/* Contenedor de la parte derecha (Usuario y Botón) */
 .session {
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-left: auto;
 }
 
+/* Texto del usuario */
 .user {
-  color: #fff;
-  font-size: 0.9rem;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* Botón blanco de Cerrar sesión */
+button.secondary {
+  background-color: #ffffff;
+  color: #3b4cb8;
+  border: none;
+  padding: 0.4rem 0.85rem;
+  border-radius: 0.375rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+button.secondary:hover {
+  background-color: #f1f5f9;
 }

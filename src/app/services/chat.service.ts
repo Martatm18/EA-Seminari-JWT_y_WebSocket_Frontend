@@ -23,6 +23,38 @@ export interface ChatError {
   message: string;
 }
 
+export type ChatUserStatus = 'online' | 'busy' | 'invisible';
+
+export interface OnlineUser {
+  id: string;
+  status: ChatUserStatus;
+}
+
+export function normalizeOnlineUsers(payload: unknown): OnlineUser[] {
+  if (!Array.isArray(payload)) {
+    return [];
+  }
+
+  return payload.flatMap((entry): OnlineUser[] => {
+    if (typeof entry === 'string' && entry.length > 0) {
+      return [{ id: entry, status: 'online' }];
+    }
+
+    if (
+      typeof entry === 'object' &&
+      entry !== null &&
+      'id' in entry &&
+      typeof entry.id === 'string' &&
+      'status' in entry &&
+      (entry.status === 'online' || entry.status === 'busy')
+    ) {
+      return [{ id: entry.id, status: entry.status }];
+    }
+
+    return [];
+  });
+}
+
 // Mensaje con el que el backend rechaza la conexión si el token falta, es falso o ha caducado
 const AUTH_ERROR = 'Authentication error';
 
@@ -57,9 +89,8 @@ export class ChatService {
   private readonly messageSubject = new Subject<ChatMessage>();
   readonly messages$ = this.messageSubject.asObservable();
 
-  // Ids de los usuarios que tienen el chat abierto. El servidor envía la lista entera cada vez
-  // que alguien entra o sale. Es un BehaviorSubject para que quien se suscriba tarde tenga el valor.
-  private readonly onlineUsersSubject = new BehaviorSubject<string[]>([]);
+  // Presencia de los usuarios conectados, enviada por el servidor cada vez que cambia.
+  private readonly onlineUsersSubject = new BehaviorSubject<OnlineUser[]>([]);
   readonly onlineUsers$ = this.onlineUsersSubject.asObservable();
 
   // Errores funcionales enviados por el backend (por ejemplo, sala no válida).
@@ -128,8 +159,8 @@ export class ChatService {
       this.messageSubject.next(message);
     });
 
-    this.socket.on('users:online', (userIds: string[]) => {
-      this.onlineUsersSubject.next(userIds);
+    this.socket.on('users:online', (payload: unknown) => {
+      this.onlineUsersSubject.next(normalizeOnlineUsers(payload));
     });
 
     this.socket.on('chat:error', (error: ChatError) => {
@@ -148,6 +179,10 @@ export class ChatService {
   sendMessage(room: string, text: string): void {
     // El servidor obtiene el autor del JWT; el cliente solo envía sala y texto.
     this.emit('chat:message', { room, text });
+  }
+
+  setPresence(status: ChatUserStatus): void {
+    this.emit('chat:status', { status });
   }
 
   emit<T>(eventName: string, payload: T): void {

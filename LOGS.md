@@ -45,12 +45,14 @@ LOGS.md.
     `Authentication error`.
   - Salas: `general`, `group:<nombre>` y `direct:<idA>:<idB>` (los dos ids ordenados; solo entran
     esos dos usuarios). Cualquier otro nombre se rechaza con `chat:error`.
-  - Del cliente al servidor: `chat:join` con `{ room }` y `chat:message` con `{ room, text }` (de 1
-    a 2000 caracteres; hay que haber entrado antes en la sala).
+  - Del cliente al servidor: `chat:join` con `{ room }`, `chat:message` con `{ room, text }` (de 1
+    a 2000 caracteres; hay que haber entrado antes en la sala) y `chat:status` con `{ status }`
+    (`online`, `busy` o `invisible`).
   - Del servidor al cliente: `chat:history` (solo a quien entra: los 50 últimos mensajes de la sala,
-    del más antiguo al más nuevo), `chat:message` (a toda la sala, también a quien lo escribió) y
-    `chat:error` con `{ message }` y `users:online` (a todos, cada vez que alguien abre o cierra el
-    chat: la lista de ids de los usuarios conectados).
+    del más antiguo al más nuevo), `chat:message` (a toda la sala, también a quien lo escribió),
+    `chat:error` con `{ message }`, `chat:status` (confirmación del estado propio) y `users:online`
+    (a todos, con `{ id, status }` por usuario conectado, actualizado al entrar, salir o cambiar
+    presencia; los usuarios invisibles no aparecen).
   - Un mensaje es `{ _id, room, user: { _id, name }, text, timestamp }`.
   - `GET /users` (con sesión, cualquier rol) responde `{ users: [{ _id, name }] }`, ordenados por
     nombre, para elegir con quién hablar en el chat directo.

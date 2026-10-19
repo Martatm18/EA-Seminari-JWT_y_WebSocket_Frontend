@@ -13,13 +13,21 @@ import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 
 import { AuthService } from '../../services/auth.service';
-import { ChatMessage, ChatService, ChatUser } from '../../services/chat.service';
+import {
+  ChatMessage,
+  ChatService,
+  ChatUser,
+  ChatUserStatus,
+  OnlineUser,
+} from '../../services/chat.service';
 
 type ChatLevel = 'general' | 'group' | 'direct';
+type ChatPresence = ChatUserStatus;
 
 // Un usuario de la lista, con su estado de conexión
 export interface ChatPerson extends ChatUser {
   online: boolean;
+  status: ChatUserStatus | 'offline';
 }
 
 @Component({
@@ -43,31 +51,60 @@ export class Chat implements OnInit, OnDestroy {
   readonly messageText = signal('');
   readonly error = signal('');
   readonly activeRoom = signal('general');
-  readonly onlineIds = signal<string[]>([]);
+  readonly onlineUsers = signal<OnlineUser[]>([]);
+  readonly presence = signal<ChatPresence>(this.getStoredPresence());
 
   // El usuario con sesión, para mostrarlo el primero de la lista como "tú"
   readonly me = this.authService.user;
 
-  // Los demás usuarios con su estado: primero los conectados y después por nombre.
-  // computed se recalcula solo cuando cambia la lista de usuarios o la de conectados.
+  readonly presenceLabel = computed(() => {
+    switch (this.presence()) {
+      case 'busy':
+        return 'No molestar';
+      case 'invisible':
+        return 'Desconectado';
+      default:
+        return 'Disponible';
+    }
+  });
+
+  readonly connectionLabel = computed(() => {
+    if (!this.connected() || this.presence() === 'invisible') {
+      return 'Desconectado';
+    }
+
+    return this.presence() === 'busy' ? 'No molestar' : 'Conectado';
+  });
+
+  // Los demás usuarios con su estado: disponibles y ocupados primero; invisibles aparecen
+  // desconectados porque el servidor los omite de users:online.
   readonly people = computed<ChatPerson[]>(() => {
-    const online = new Set(this.onlineIds());
+    const statuses = new Map<string, ChatUserStatus>(
+      this.onlineUsers().map(({ id, status }) => [String(id), status]),
+    );
+
     return this.users()
-      .map((user) => ({ ...user, online: online.has(user._id) }))
+      .map((user): ChatPerson => {
+        const status: ChatPerson['status'] = statuses.get(String(user._id)) ?? 'offline';
+        return { ...user, status, online: status === 'online' || status === 'busy' };
+      })
       .sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
   });
 
-  // Cuántos están conectados, contando al propio usuario si su socket está abierto
+  // Cuántos están conectados, contando al propio usuario si su socket está abierto.
   readonly onlineCount = computed(
-    () => this.people().filter((person) => person.online).length + (this.connected() ? 1 : 0),
+    () => this.people().filter((person) => person.online).length + (this.connected() && this.presence() !== 'invisible' ? 1 : 0),
   );
 
   ngOnInit(): void {
+    this.persistPresence();
+
     // Suscribirse antes de conectar evita perder eventos que lleguen pronto.
     this.subscriptions.add(
       this.chatService.connectionStatus$.subscribe((connected) => {
         this.connected.set(connected);
         if (connected) {
+          this.publishPresence();
           this.joinActiveRoom();
         }
       }),
@@ -96,7 +133,7 @@ export class Chat implements OnInit, OnDestroy {
     );
 
     this.subscriptions.add(
-      this.chatService.onlineUsers$.subscribe((userIds) => this.onlineIds.set(userIds)),
+      this.chatService.onlineUsers$.subscribe((users) => this.onlineUsers.set(users)),
     );
 
     this.subscriptions.add(
@@ -174,6 +211,12 @@ export class Chat implements OnInit, OnDestroy {
     this.setChatLevel('direct');
   }
 
+  setPresence(nextPresence: ChatPresence): void {
+    this.presence.set(nextPresence);
+    this.persistPresence();
+    this.publishPresence();
+  }
+
   sendMessage(): void {
     const text = this.messageText().trim();
     if (!text || !this.activeRoom() || !this.connected()) {
@@ -193,6 +236,33 @@ export class Chat implements OnInit, OnDestroy {
     // Cancela todas las suscripciones y cierra el socket al salir del componente.
     this.subscriptions.unsubscribe();
     this.chatService.disconnect();
+  }
+
+  private persistPresence(): void {
+    localStorage.setItem('chat-presence', this.presence());
+  }
+
+  private publishPresence(): void {
+    if (!this.connected()) {
+      return;
+    }
+
+    try {
+      this.chatService.setPresence(this.presence());
+      this.error.set('');
+    } catch (error: unknown) {
+      this.error.set(
+        error instanceof Error ? error.message : 'No se pudo actualizar el estado de presencia.',
+      );
+    }
+  }
+
+  private getStoredPresence(): ChatPresence {
+    const saved = localStorage.getItem('chat-presence');
+    if (saved === 'busy' || saved === 'invisible') {
+      return saved;
+    }
+    return 'online';
   }
 
   private joinActiveRoom(): void {

@@ -1,8 +1,15 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, Subject, of } from 'rxjs';
 
 import { AuthService } from '../../services/auth.service';
-import { ChatError, ChatMessage, ChatService, ChatUser } from '../../services/chat.service';
+import {
+  ChatError,
+  ChatMessage,
+  ChatService,
+  ChatUser,
+  OnlineUser,
+} from '../../services/chat.service';
 import { Chat } from './chat';
 
 // ChatService falso: el componente se prueba sin servidor de sockets.
@@ -13,7 +20,7 @@ class FakeChatService {
   history$ = new Subject<ChatMessage[]>();
   messages$ = new Subject<ChatMessage>();
   chatError$ = new Subject<ChatError>();
-  onlineUsers$ = new BehaviorSubject<string[]>([]);
+  onlineUsers$ = new BehaviorSubject<OnlineUser[]>([]);
   users: ChatUser[] = [
     { _id: 'b-user', name: 'Usuario' },
     { _id: 'a-admin', name: 'Admin' },
@@ -23,6 +30,7 @@ class FakeChatService {
   disconnect = vi.fn();
   joinRoom = vi.fn();
   sendMessage = vi.fn();
+  setPresence = vi.fn();
   getUsers = () => of(this.users);
 }
 
@@ -41,16 +49,19 @@ describe('Chat', () => {
 
   beforeEach(async () => {
     localStorage.clear();
-    // Sesión del admin, cuyo id es a-admin
-    localStorage.setItem(
-      'user',
-      JSON.stringify({ _id: 'a-admin', name: 'Admin', email: 'a@b.c', role: 'admin' }),
-    );
     chat = new FakeChatService();
 
     await TestBed.configureTestingModule({
       imports: [Chat],
-      providers: [{ provide: ChatService, useValue: chat }, AuthService],
+      providers: [
+        { provide: ChatService, useValue: chat },
+        {
+          provide: AuthService,
+          useValue: {
+            user: signal({ _id: 'a-admin', name: 'Admin', email: 'a@b.c', role: 'admin' }),
+          },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(Chat);
@@ -104,7 +115,10 @@ describe('Chat', () => {
 
   it('lists the connected users first and counts them, including oneself', () => {
     chat.connectionStatus$.next(true);
-    chat.onlineUsers$.next(['a-admin', 'b-user']);
+    chat.onlineUsers$.next([
+      { id: 'a-admin', status: 'online' },
+      { id: 'b-user', status: 'online' },
+    ]);
 
     expect(component.people().map((p) => [p.name, p.online])).toEqual([
       ['Usuario', true],
